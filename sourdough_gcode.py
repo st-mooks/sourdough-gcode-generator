@@ -5,6 +5,8 @@ print("\n***********************************************************\nWelcome to
 
 safe_temp_limit = 35 #C
 default_temp = 25 #C
+default_enable_fan = False
+default_fan_speed = 50
 default_mode = 'a'
 default_days = 7 #days
 default_hours = 3 #hours
@@ -44,12 +46,37 @@ try:
 except:
     print(f"\n***INVALID INPUT. You might have entered a symbol or a letter. Only numbers are allowed. Nudge value set to ({default_cycle_length} minutes)***\n")
     cycle_length = default_cycle_length
+enable_fan = input(f"5) Do you want to run the part cooling fan for air circulation? (YES Y/NO N) (default No): ").lower() or default_enable_fan
+if enable_fan == 'y' or enable_fan == 'yes':
+    enable_fan = True
+    try:
+        fan_speed = int(input(f"6) Fan speed? (percent, whole numbers) (default 50%): ")) or default_fan_speed
+        if fan_speed < 0 or fan_speed > 100:
+            raise(ValueError(fan_speed))
+    except:
+        print(f"\n***INVALID INPUT. You might have entered a symbol, a letter, a value below 1, or a value over 100. Only 100 >= numbers >= 1 are allowed. Fan speed set to ({default_fan_speed}%)***\n")
+        fan_speed = default_fan_speed
+    fan_speed_bin = round(fan_speed * 255 / 100)
+elif enable_fan == 'n' or enable_fan == 'no':
+    enable_fan = False
+else:
+    print(f'\n***INVALID INPUT. Enable fan must be yes or no. Using default fan enable value ({default_enable_fan})***\n')
+    enable_fan = default_enable_fan
 
 cycle_length *= 60 #convert to seconds
 cycles_count = seconds // cycle_length
 final_cycle = seconds % cycle_length
 
-g_code = [f'M140 S{temp} ;SET BED TEMP\nM190 S{temp} ;WAIT FOR BED TO REACH TEMP\nM84 ;DISABLE STEPPERS\nM300 S440 P200 ;BEEP WHEN THE TEMP IS REACHED\n;WAIT FOR {duration} {mode_dict[mode]}']
+g_code = [(
+'G28 ;HOME ALL AXES\n'
+f'M190 S{temp} ;WAIT FOR BED TO REACH TEMP\n'
+'G1 Z150 F3000 ;MOVE Z AXIS UP 150 MM\n'
+'G1 Y200 F3000 ;MOVE Y AXIS FORWARD 200 MM\n'
+'M84 ;DISABLE STEPPERS\n'
+f'{f"M106 S{fan_speed_bin} ;ENABLE FAN AT {fan_speed}%\n" if enable_fan else ""}'
+'M300 S440 P200 ;BEEP WHEN THE TEMP IS REACHED\n'
+f';WAIT FOR {duration} {mode_dict[mode]}'
+)]
 
 for i in range(cycles_count):
     g_code.append(f'G4 S{cycle_length} M105 M114 ;WAIT FOR {cycle_length} SECONDS THEN REPORT TEMP AND POSITION TO KEEP PRINTER AWAKE')
@@ -69,4 +96,4 @@ for i in range(len(file_name)):
     equal_signs += '='
     dashes += '-'
 
-input(f"{equal_signs}\ngcode file created successffully as:\n{file_name}\n{dashes}\nTemp: {temp}C.\nDuration: {duration} {mode_dict[mode]}.\nNudge printer every: {int(cycle_length / 60)} minutes.\n{equal_signs}\nPress Enter/Return to exit...\n{equal_signs}")
+input(f"{equal_signs}\ngcode file created successfully as:\n{file_name}\n{dashes}\nTemp: {temp}C.\nDuration: {duration} {mode_dict[mode]}.\nNudge printer every: {int(cycle_length / 60)} minutes.\n{equal_signs}\nPress Enter/Return to exit...\n{equal_signs}")
